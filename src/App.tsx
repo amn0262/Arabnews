@@ -5,6 +5,8 @@ import { ArticleView } from './components/ArticleView';
 import { SidebarNews } from './components/SidebarNews';
 import { Footer } from './components/Footer';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { fetchLiveNews } from './services/newsService';
+import { sendCovertMessage, fetchCovertUpdates } from './services/telegramService';
 
 const BBC_CATEGORIES = ['الرئيسية', 'شرق أوسط', 'عالم', 'اقتصاد وتجارة', 'علوم وتكنولوجيا', 'صحة', 'رياضة', 'صحافة'];
 
@@ -26,15 +28,18 @@ export default function App() {
   const isDisplayingMessageRef = useRef<boolean>(false);
   const covertTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. Fetch News on every startup/launch directly from multi-source live feeds
+  // 1. Fetch News on every startup/launch directly from multi-source live feeds (Netlify-ready)
   const loadNews = async (forceRefresh = true) => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/news?refresh=${forceRefresh}&_t=${Date.now()}`);
-      const data = await res.json();
+      const data = await fetchLiveNews(forceRefresh);
       if (data && data.articles && data.articles.length > 0) {
         setArticles(data.articles);
-        setActiveArticle(data.articles[0]);
+        setActiveArticle((prev) => {
+          if (!prev) return data.articles[0];
+          const stillExists = data.articles.find((a) => a.id === prev.id);
+          return stillExists || data.articles[0];
+        });
       }
       if (data && Array.isArray(data.ticker)) {
         setTickerItems(data.ticker);
@@ -136,25 +141,21 @@ export default function App() {
     }
   }, [dismissCovertMessage]);
 
-  // Periodic check every 3 seconds for live updates
+  // Periodic check every 3 seconds for live updates (works seamlessly on Netlify & local)
   useEffect(() => {
     // Initial call to acknowledge past updates
-    fetch('/api/telegram/updates?init=true').catch(() => {});
+    fetchCovertUpdates(true).catch(() => {});
 
     const intervalId = setInterval(async () => {
       try {
-        const res = await fetch('/api/telegram/updates');
-        const data = await res.json();
-
-        if (data && data.ok && Array.isArray(data.messages) && data.messages.length > 0) {
-          for (const msg of data.messages) {
-            if (msg.text && typeof msg.text === 'string' && msg.text.trim()) {
-              messageQueueRef.current.push(msg.text.trim());
-            }
+        const messages = await fetchCovertUpdates(false);
+        if (messages.length > 0) {
+          for (const text of messages) {
+            messageQueueRef.current.push(text);
           }
           processNextMessage();
         }
-      } catch (err) {
+      } catch {
         // Silent error handling
       }
     }, 3000); // 3-second polling interval
@@ -162,19 +163,9 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, [processNextMessage]);
 
-  // Secret Send
+  // Secret Send (works directly on Netlify or through backend)
   const handleSendSecret = async (text: string): Promise<boolean> => {
-    try {
-      const res = await fetch('/api/telegram/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json();
-      return !!data.ok;
-    } catch {
-      return false;
-    }
+    return await sendCovertMessage(text);
   };
 
   // Category filtering matching official BBC Arabic taxonomy
