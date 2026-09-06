@@ -1,0 +1,6 @@
+{
+  "name": "مرصد الأخبار اليومية",
+  "description": "منصة إخبارية رقمية تعرض أحدث التقارير الإخبارية والتحليلات المباشرة مع مساحة تفاعلية لملاحظات القراء.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

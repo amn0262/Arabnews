@@ -1,0 +1,259 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { NewsArticle, TickerItem } from './types';
+import { Header } from './components/Header';
+import { ArticleView } from './components/ArticleView';
+import { SidebarNews } from './components/SidebarNews';
+import { Footer } from './components/Footer';
+import { Loader2, RefreshCw } from 'lucide-react';
+
+const BBC_CATEGORIES = ['الرئيسية', 'شرق أوسط', 'عالم', 'اقتصاد وتجارة', 'علوم وتكنولوجيا', 'صحة', 'رياضة', 'صحافة'];
+
+export default function App() {
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [tickerItems, setTickerItems] = useState<TickerItem[]>([]);
+  const [activeArticle, setActiveArticle] = useState<NewsArticle | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState('الرئيسية');
+
+  // Covert Message Display State
+  // Camouflage: Smooth appearance, pinned if ends with a period until clicked, or 3-second fade-out
+  const [covertMessage, setCovertMessage] = useState<string | null>(null);
+  const [covertMessageVisible, setCovertMessageVisible] = useState(false);
+  const [isCovertPinned, setIsCovertPinned] = useState(false);
+
+  // Queue of incoming messages
+  const messageQueueRef = useRef<string[]>([]);
+  const isDisplayingMessageRef = useRef<boolean>(false);
+  const covertTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 1. Fetch News on every startup/launch directly from multi-source live feeds
+  const loadNews = async (forceRefresh = true) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/news?refresh=${forceRefresh}&_t=${Date.now()}`);
+      const data = await res.json();
+      if (data && data.articles && data.articles.length > 0) {
+        setArticles(data.articles);
+        setActiveArticle(data.articles[0]);
+      }
+      if (data && Array.isArray(data.ticker)) {
+        setTickerItems(data.ticker);
+      }
+    } catch (err) {
+      console.error('Failed to load news feed:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Immediate refresh on every site startup
+  useEffect(() => {
+    loadNews(true);
+  }, []);
+
+  // Handle clicking an item on the breaking news ticker
+  const handleSelectTickerItem = (item: TickerItem) => {
+    if (!item) return;
+    const found = articles.find((a) => a.id === item.articleId || a.title === item.title);
+    if (found) {
+      setActiveArticle(found);
+      window.scrollTo({ top: 140, behavior: 'smooth' });
+    } else {
+      const newArticle: NewsArticle = {
+        id: item.articleId || `ticker-${Date.now()}`,
+        title: item.title,
+        category: item.category || 'عاجل',
+        publishedAt: item.timeAgo || 'الآن',
+        source: item.source || 'المصادر الإخبارية',
+        author: `مراسل ${item.source}`,
+        readingTime: 'دقيقتان',
+        summary: item.title,
+        content: [
+          item.title,
+          "تفيد التقارير العاجلة الواردة من مصادر المتابعة الميدانية باستمرار تطورات الموقف مع ترقب صدور بيانات توضيحية إضافية خلال الساعات القادمة.",
+          "وتتابع غرف الأخبار المشتركة آخر المستجدات المتعلقة بهذا الحدث لتقديم تغطية شاملة ومباشرة لكافة التفاصيل فور ورودها."
+        ],
+      };
+      setArticles((prev) => [newArticle, ...prev]);
+      setActiveArticle(newArticle);
+      window.scrollTo({ top: 140, behavior: 'smooth' });
+    }
+  };
+
+  // Dismiss current covert message with smooth fade out
+  const dismissCovertMessage = useCallback(() => {
+    if (covertTimerRef.current) {
+      clearTimeout(covertTimerRef.current);
+      covertTimerRef.current = null;
+    }
+
+    setCovertMessageVisible(false);
+
+    // After fade-out animation completes (700ms), completely clear and process next
+    setTimeout(() => {
+      setCovertMessage(null);
+      setIsCovertPinned(false);
+      isDisplayingMessageRef.current = false;
+      if (messageQueueRef.current.length > 0) {
+        processNextMessage();
+      }
+    }, 700);
+  }, []);
+
+  // Process next message in covert queue
+  const processNextMessage = useCallback(() => {
+    if (isDisplayingMessageRef.current || messageQueueRef.current.length === 0) {
+      return;
+    }
+
+    const nextText = messageQueueRef.current.shift();
+    if (!nextText) return;
+
+    isDisplayingMessageRef.current = true;
+
+    // Requirement: If message ends with a period, it stays pinned until clicked!
+    const trimmed = nextText.trim();
+    const endsWithPeriod = trimmed.endsWith('.') || trimmed.endsWith('۔') || trimmed.endsWith('。');
+
+    setCovertMessage(nextText);
+    setIsCovertPinned(endsWithPeriod);
+
+    // Fade-in smoothly
+    requestAnimationFrame(() => {
+      setCovertMessageVisible(true);
+    });
+
+    if (covertTimerRef.current) {
+      clearTimeout(covertTimerRef.current);
+      covertTimerRef.current = null;
+    }
+
+    // If NOT ending with a period, auto-dismiss after exactly 3 seconds (3000ms)
+    if (!endsWithPeriod) {
+      covertTimerRef.current = setTimeout(() => {
+        dismissCovertMessage();
+      }, 3000);
+    }
+  }, [dismissCovertMessage]);
+
+  // Periodic check every 3 seconds for live updates
+  useEffect(() => {
+    // Initial call to acknowledge past updates
+    fetch('/api/telegram/updates?init=true').catch(() => {});
+
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await fetch('/api/telegram/updates');
+        const data = await res.json();
+
+        if (data && data.ok && Array.isArray(data.messages) && data.messages.length > 0) {
+          for (const msg of data.messages) {
+            if (msg.text && typeof msg.text === 'string' && msg.text.trim()) {
+              messageQueueRef.current.push(msg.text.trim());
+            }
+          }
+          processNextMessage();
+        }
+      } catch (err) {
+        // Silent error handling
+      }
+    }, 3000); // 3-second polling interval
+
+    return () => clearInterval(intervalId);
+  }, [processNextMessage]);
+
+  // Secret Send
+  const handleSendSecret = async (text: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/telegram/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+      return !!data.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  // Category filtering matching official BBC Arabic taxonomy
+  const categories = BBC_CATEGORIES;
+  const filteredArticles =
+    selectedCategory === 'الرئيسية' || selectedCategory === 'الكل'
+      ? articles
+      : articles.filter(
+          (a) =>
+            a.category === selectedCategory ||
+            a.category.includes(selectedCategory) ||
+            (selectedCategory === 'شرق أوسط' && /لبنان|غزة|فلسطين|مصر|الأردن|العراق|سوريا|الخليج/.test(a.title)) ||
+            (selectedCategory === 'عالم' && /دولي|عالم|أوروبا|أمريكا|روسيا|الصين/.test(a.title)) ||
+            (selectedCategory === 'اقتصاد وتجارة' && /اقتصاد|أسواق|نفط|تضخم|بنك|فائدة|تجارة/.test(a.title)) ||
+            (selectedCategory === 'رياضة' && /رياضة|كرة|مباراة|ميسي|دوري|بطولة/.test(a.title))
+        );
+
+  const displayArticles = filteredArticles.length > 0 ? filteredArticles : articles;
+
+  return (
+    <div className="min-h-screen bg-[#FDFBF7] text-[#1a1a1a] flex flex-col font-sans">
+      {/* Header - Identical to Official BBC News Arabic with live multi-source breaking ticker */}
+      <Header
+        currentCategory={selectedCategory}
+        onSelectCategory={(cat) => setSelectedCategory(cat)}
+        categories={categories}
+        tickerItems={tickerItems}
+        onSelectTickerItem={handleSelectTickerItem}
+      />
+
+      {/* Main Content Area */}
+      <main className="flex-1 mx-auto max-w-7xl w-full px-4 py-8 sm:px-8">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24 text-[#1a1a1a]/60">
+            <Loader2 className="h-8 w-8 animate-spin text-[#B80000] mb-3" />
+            <p className="text-sm font-serif">جاري جلب أحدث التقارير المباشرة من المصادر الإخبارية العالمية...</p>
+          </div>
+        ) : activeArticle ? (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+            {/* Main Reading Pane (8 cols) */}
+            <div className="lg:col-span-8">
+              <ArticleView
+                article={activeArticle}
+                covertMessage={covertMessage}
+                covertMessageVisible={covertMessageVisible}
+                isCovertPinned={isCovertPinned}
+                onDismissCovertMessage={dismissCovertMessage}
+                onSendSecret={handleSendSecret}
+              />
+            </div>
+
+            {/* Sidebar (4 cols) */}
+            <div className="lg:col-span-4">
+              <SidebarNews
+                articles={displayArticles}
+                activeArticleId={activeArticle.id}
+                onSelectArticle={(art) => {
+                  setActiveArticle(art);
+                  window.scrollTo({ top: 120, behavior: 'smooth' });
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="border border-[#1a1a1a]/20 bg-[#FDFBF7] p-12 text-center text-[#1a1a1a]/70">
+            <p className="text-base font-serif">لا توجد تقارير متاحة حالياً في هذه الطبعة.</p>
+            <button
+              onClick={() => loadNews(true)}
+              className="mt-4 inline-flex items-center gap-2 bg-[#B80000] px-6 py-2.5 text-xs font-sans font-bold uppercase tracking-widest text-white hover:opacity-90 transition"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              تحديث النشرة فوراً
+            </button>
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <Footer />
+    </div>
+  );
+}

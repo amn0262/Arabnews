@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'IBM Plex Sans Arabic', 'Cairo', system-ui, -apple-system, sans-serif;
+    background-color: #FDFBF7;
+    color: #1a1a1a;
+  }
+
+  h1, h2, h3, h4, .font-serif, .editorial-heading {
+    font-family: 'Amiri', 'Newsreader', Georgia, Cambria, 'Times New Roman', serif;
+  }
+}
