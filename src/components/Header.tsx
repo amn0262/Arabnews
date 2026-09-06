@@ -60,6 +60,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Helper for source tag styling
   const getSourceBadgeColor = (source: string) => {
+    if (source.includes('سناك')) return 'bg-[#0D7A57] text-white';
+    if (source.includes('تلفزيون سوريا')) return 'bg-[#14344E] text-white';
+    if (source.includes('البوابة العربية') || source.includes('تقنية')) return 'bg-[#0072CE] text-white';
     if (source.includes('بي بي سي')) return 'bg-[#BB1919] text-white';
     if (source.includes('الجزيرة')) return 'bg-[#002B49] text-white';
     if (source.includes('فرانس')) return 'bg-[#0055A5] text-white';

@@ -8,7 +8,7 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { fetchLiveNews } from './services/newsService';
 import { sendCovertMessage, fetchCovertUpdates } from './services/telegramService';
 
-const BBC_CATEGORIES = ['الرئيسية', 'شرق أوسط', 'عالم', 'اقتصاد وتجارة', 'علوم وتكنولوجيا', 'صحة', 'رياضة', 'صحافة'];
+const BBC_CATEGORIES = ['الرئيسية', 'سوريا', 'شرق أوسط', 'عالم', 'اقتصاد وتجارة', 'علوم وتكنولوجيا', 'صحة', 'رياضة', 'صحافة'];
 
 export default function App() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
@@ -168,29 +168,64 @@ export default function App() {
     return await sendCovertMessage(text);
   };
 
-  // Category filtering matching official BBC Arabic taxonomy
+  // Category filtering matching official BBC Arabic taxonomy & Syrian sources
   const categories = BBC_CATEGORIES;
+
+  const matchesCategory = (a: NewsArticle, cat: string): boolean => {
+    if (cat === 'الرئيسية' || cat === 'الكل') return true;
+    if (a.category === cat || a.category.includes(cat)) return true;
+
+    const fullText = `${a.title} ${a.summary || ''} ${a.source || ''}`.toLowerCase();
+    if (cat === 'سوريا') {
+      return /سناك سوري|تلفزيون سوريا|سوريا|سورية|دمشق|حلب|حمص|حماة|اللاذقية|طرطوس|إدلب|السويداء|درعا|دير الزور|الرقة|الحسكة|القامشلي/.test(fullText);
+    }
+    if (cat === 'شرق أوسط') {
+      return /لبنان|غزة|فلسطين|مصر|الأردن|العراق|اليمن|الخليج|إيران|القدس|الضفة/.test(fullText);
+    }
+    if (cat === 'عالم') {
+      return /عالم|دولي|أوروبا|أمريكا|روسيا|الصين|أوكرانيا|واشنطن|باريس|لندن|بريطانيا|ألمانيا/.test(fullText);
+    }
+    if (cat === 'اقتصاد وتجارة') {
+      return /اقتصاد|أسواق|نفط|تضخم|بنك|فائدة|تجارة|بورصة|مالية|استثمار|سهم|دولار|ذهب/.test(fullText);
+    }
+    if (cat === 'علوم وتكنولوجيا') {
+      return /تكنولوجيا|تقنية|ذكاء اصطناعي|روبوت|حاسوب|هاتف|إنترنت|فضاء|شريحة|تطبيق|برمجيات|aitnews/.test(fullText);
+    }
+    if (cat === 'صحة') {
+      return /صحة|طب|أطباء|فيروس|مستشفى|لقاح|دواء|علاج|مرض|سرطان|نوم|حمية|تغذية/.test(fullText);
+    }
+    if (cat === 'رياضة') {
+      return /رياضة|كرة|مباراة|ميسي|رونالدو|دوري|بطولة|نادي|هدف|ملعب|ليفربول|ريال مدريد|برشلونة/.test(fullText);
+    }
+    if (cat === 'صحافة') {
+      return /صحافة|تحليل|رأي|مقال|تقرير|اندبندنت/.test(fullText);
+    }
+    return false;
+  };
+
   const filteredArticles =
     selectedCategory === 'الرئيسية' || selectedCategory === 'الكل'
       ? articles
-      : articles.filter(
-          (a) =>
-            a.category === selectedCategory ||
-            a.category.includes(selectedCategory) ||
-            (selectedCategory === 'شرق أوسط' && /لبنان|غزة|فلسطين|مصر|الأردن|العراق|سوريا|الخليج/.test(a.title)) ||
-            (selectedCategory === 'عالم' && /دولي|عالم|أوروبا|أمريكا|روسيا|الصين/.test(a.title)) ||
-            (selectedCategory === 'اقتصاد وتجارة' && /اقتصاد|أسواق|نفط|تضخم|بنك|فائدة|تجارة/.test(a.title)) ||
-            (selectedCategory === 'رياضة' && /رياضة|كرة|مباراة|ميسي|دوري|بطولة/.test(a.title))
-        );
+      : articles.filter((a) => matchesCategory(a, selectedCategory));
 
   const displayArticles = filteredArticles.length > 0 ? filteredArticles : articles;
+
+  const handleSelectCategory = (cat: string) => {
+    setSelectedCategory(cat);
+    const relevant = cat === 'الرئيسية' || cat === 'الكل'
+      ? articles
+      : articles.filter((a) => matchesCategory(a, cat));
+    if (relevant.length > 0) {
+      setActiveArticle(relevant[0]);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-[#1a1a1a] flex flex-col font-sans">
       {/* Header - Identical to Official BBC News Arabic with live multi-source breaking ticker */}
       <Header
         currentCategory={selectedCategory}
-        onSelectCategory={(cat) => setSelectedCategory(cat)}
+        onSelectCategory={handleSelectCategory}
         categories={categories}
         tickerItems={tickerItems}
         onSelectTickerItem={handleSelectTickerItem}

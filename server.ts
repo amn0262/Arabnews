@@ -81,6 +81,16 @@ const fallbackArticles = [
 
 const RSS_SOURCES = [
   {
+    name: "سناك سوري",
+    url: "https://snacksyrian.com/feed/",
+    defaultCategory: "سوريا",
+  },
+  {
+    name: "تلفزيون سوريا",
+    url: "https://www.syria.tv/rss",
+    defaultCategory: "سوريا",
+  },
+  {
     name: "بي بي سي عربي",
     url: "https://feeds.bbci.co.uk/arabic/rss.xml",
     defaultCategory: "عالم",
@@ -91,9 +101,24 @@ const RSS_SOURCES = [
     defaultCategory: "شرق أوسط",
   },
   {
-    name: "فرانس 24",
-    url: "https://www.france24.com/ar/rss",
-    defaultCategory: "عالم",
+    name: "فرانس 24 اقتصاد",
+    url: "https://www.france24.com/ar/%D8%A7%D9%82%D8%AA%D8%B5%D8%A7%D8%AF/rss",
+    defaultCategory: "اقتصاد وتجارة",
+  },
+  {
+    name: "البوابة العربية للأخبار التقنية",
+    url: "https://aitnews.com/feed/",
+    defaultCategory: "علوم وتكنولوجيا",
+  },
+  {
+    name: "فرانس 24 رياضة",
+    url: "https://www.france24.com/ar/%D8%B1%D9%8A%D8%A7%D8%B6%D8%A9/rss",
+    defaultCategory: "رياضة",
+  },
+  {
+    name: "فرانس 24 ثقافة وصحة",
+    url: "https://www.france24.com/ar/%D8%AB%D9%82%D8%A7%D9%81%D8%A9/rss",
+    defaultCategory: "صحة",
   },
   {
     name: "اندبندنت عربية",
@@ -104,11 +129,14 @@ const RSS_SOURCES = [
 
 function determineCategory(title: string, desc: string, defaultCat: string): string {
   const text = `${title} ${desc}`.toLowerCase();
-  if (/اقتصاد|أسواق|بورصة|نفط|تضخم|بنك|فائدة|تجارة|مالية|استثمار/.test(text)) return "اقتصاد وتجارة";
-  if (/تكنولوجيا|تقنية|ذكاء اصطناعي|روبوت|حاسوب|هاتف|إنترنت|فضاء|شريحة/.test(text)) return "علوم وتكنولوجيا";
-  if (/صحة|طب|أطباء|فيروس|مستشفى|لقاح|دواء|علاج|مرض/.test(text)) return "صحة";
-  if (/رياضة|كرة|مباراة|دوري|بطولة|نادي|هدف|ملعب|ميسي|رونالدو/.test(text)) return "رياضة";
-  if (/لبنان|غزة|فلسطين|القدس|سوريا|العراق|اليمن|مصر|السعودية|الأردن|الخليج|إيران/.test(text)) return "شرق أوسط";
+  if (defaultCat === "سوريا") return "سوريا";
+  if (/سوريا|دمشق|حلب|حمص|حماة|اللاذقية|طرطوس|إدلب|السويداء|درعا|دير الزور|الرقة|الحسكة|القامشلي/.test(text)) return "سوريا";
+  if (defaultCat === "رياضة" || /رياضة|كرة|مباراة|دوري|بطولة|نادي|هدف|ملعب|ميسي|رونالدو|ريال مدريد|برشلونة|ليفربول|مدرب/.test(text)) return "رياضة";
+  if (defaultCat === "اقتصاد وتجارة" || /اقتصاد|أسواق|بورصة|نفط|تضخم|بنك|فائدة|تجارة|مالية|استثمار|سهم|دولار|ذهب|شركات/.test(text)) return "اقتصاد وتجارة";
+  if (defaultCat === "علوم وتكنولوجيا" || /تكنولوجيا|تقنية|ذكاء اصطناعي|روبوت|حاسوب|هاتف|إنترنت|فضاء|شريحة|آبل|جوجل|مايكروسوفت|أندرويد|تطبيق/.test(text)) return "علوم وتكنولوجيا";
+  if (defaultCat === "صحة" || /صحة|طب|أطباء|فيروس|مستشفى|لقاح|دواء|علاج|مرض|سرطان|نوم|حمية|تغذية/.test(text)) return "صحة";
+  if (/لبنان|غزة|فلسطين|القدس|العراق|اليمن|مصر|السعودية|الأردن|الخليج|إيران|الدوحة|الرياض/.test(text)) return "شرق أوسط";
+  if (defaultCat === "صحافة" || /صحافة|تحليل|رأي|تقرير|كتابات/.test(text)) return "صحافة";
   return defaultCat || "عالم";
 }
 
